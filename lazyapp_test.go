@@ -1,4 +1,4 @@
-package lazyapp
+package lazyservice
 
 import (
 	"context"
@@ -27,13 +27,13 @@ func TestServiceFunc(t *testing.T) {
 		l.Info("hi")
 		return fmt.Errorf("hi")
 	}
-	srv := ServiceFunc("basic", service)
+	srv := serviceFunc("basic", service)
 
 	if srv.Desc().Name() != "basic" {
 		t.Error(srv.Desc().Name())
 	}
 
-	err := srv.Run(context.Background(), slog.Default())
+	err := srv.Run(context.Background())
 	if err.Error() != "hi" {
 		t.Error("error didn't said hi")
 	}
@@ -76,12 +76,13 @@ func TestValues(t *testing.T) {
 
 func TestLazyApp(t *testing.T) {
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	app := NewWithContext(
 		ctx,
 		"test", "1.0.0")
 	app.AddValue("key", "value")
-	app.AddService(ServiceFunc("http", func(ctx context.Context, l *slog.Logger) error {
+	app.AddService(serviceFunc("http", func(ctx context.Context, l *slog.Logger) error {
 
 		s := &http.Server{
 			Addr: ":8083",
@@ -92,7 +93,8 @@ func TestLazyApp(t *testing.T) {
 			defer close(idleConnsClosed)
 			<-ctx.Done()
 			l.InfoContext(app, "shutting down")
-			ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
 			err := s.Shutdown(ctx)
 			if err == nil || err == context.Canceled || err == context.DeadlineExceeded {
 				return

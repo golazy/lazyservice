@@ -1,10 +1,10 @@
-// Package lazyapp provides a framework for building lazy applications in Go.
+// Package lazyservice provides a framework for building lazy applications in Go.
 // A lazy application is an application that starts and stops services on demand.
 // It allows you to define services as functions and run them within the application.
 // The lazyapp package provides an interface for defining services, adding values and types to the application, and running the application and its services.
 // It also provides a default logger implementation and supports colored debug messages and JSON logs.
 // The application uses trace regions for the app and each of the services.
-package lazyapp
+package lazyservice
 
 import (
 	"context"
@@ -15,25 +15,27 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime/trace"
+	"syscall"
 
 	"github.com/lmittmann/tint"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 )
 
-func ServiceFunc(name string, f func(context.Context, *slog.Logger) error) Service {
-	return &serviceFunc{
+func serviceFunc(name string, f func(context.Context, *slog.Logger) error) Service {
+	return &srvFn{
 		name: name,
 		f:    f,
 	}
 }
 
-type serviceFunc struct {
+type srvFn struct {
 	name string
 	f    func(context.Context, *slog.Logger) error
 }
 
-func (f *serviceFunc) Run(ctx context.Context, l *slog.Logger) error {
+func (f *srvFn) Run(ctx context.Context) error {
+	l := AppGet[*slog.Logger](ctx)
 	if l == nil {
 		l = slog.Default()
 	}
@@ -41,7 +43,7 @@ func (f *serviceFunc) Run(ctx context.Context, l *slog.Logger) error {
 	return f.f(ctx, l)
 }
 
-func (f *serviceFunc) Desc() ServiceDescription {
+func (f *srvFn) Desc() ServiceDescription {
 	return serviceFuncDesc{name: f.name}
 
 }
@@ -60,7 +62,7 @@ type ServiceDescription interface {
 
 type Service interface {
 	Desc() ServiceDescription
-	Run(context.Context, *slog.Logger) error
+	Run(context.Context) error
 }
 
 type LazyApp interface {
@@ -76,13 +78,14 @@ type LazyApp interface {
 }
 
 type lazyApp struct {
-	name     string
-	version  string
-	ctx      context.Context
-	logger   *slog.Logger
-	services []Service
-	done     chan struct{}
-	cancel   context.CancelFunc
+	name       string
+	version    string
+	ctx        context.Context
+	captureInt bool
+	logger     *slog.Logger
+	services   []Service
+	done       chan struct{}
+	cancel     context.CancelFunc
 }
 
 func (a *lazyApp) Name() string {
@@ -125,9 +128,12 @@ func AppSet[T any](app LazyApp, value T) {
 // If any service returns, all the contexts will be canceled and the app will wait for all services to stop.
 // The application uses trace regions for the app and for each of the services.
 func (a *lazyApp) Run() error {
-	if a.ctx == nil {
-		a.ctx, a.cancel = signal.NotifyContext(context.Background(), os.Interrupt)
-		defer a.cancel()
+	if a.captureInt {
+		if a.ctx == nil {
+			a.ctx = context.Background()
+		}
+		a.ctx, a.cancel = signal.NotifyContext(a.ctx, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+		//a.cancel()
 	}
 
 	// Logger
@@ -155,6 +161,10 @@ func (a *lazyApp) Run() error {
 		}
 	}
 	a.logger = a.logger.With("app", a.name, "version", a.version)
+	go func() {
+		<-a.ctx.Done()
+		a.logger.Info("interrupt signal received")
+	}()
 
 	AppSet(a, a.logger)
 
@@ -175,7 +185,7 @@ func (a *lazyApp) Run() error {
 			defer srvReg.End()
 
 			l.InfoContext(ctx, "starting service")
-			err := s.Run(ctx, l)
+			err := s.Run(ctx)
 			if errors.Is(err, context.Canceled) ||
 				errors.Is(err, context.DeadlineExceeded) {
 				l.InfoContext(ctx, "stopped")
@@ -196,8 +206,9 @@ func (a *lazyApp) Run() error {
 // If the version is empty, it tries to use the modification time of the executable.
 func New(name, version string) LazyApp {
 	return (&lazyApp{
-		name:    name,
-		version: version,
+		name:       name,
+		version:    version,
+		captureInt: true,
 	}).init()
 }
 

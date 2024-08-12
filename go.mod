@@ -1,4 +1,4 @@
-module golazy.dev/lazyapp
+module golazy.dev/lazyservice
 
 go 1.22.3
 

@@ -1,4 +1,4 @@
-package lazyapp
+package lazyservice
 
 import (
 	"time"

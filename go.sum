@@ -8,3 +8,5 @@ golang.org/x/term v0.23.0 h1:F6D4vR+EHoL9/sWAWgAR1H2DcHr4PareCbAaCo1RpuU=
 golang.org/x/term v0.23.0/go.mod h1:DgV24QBUrK6jhZXl+20l6UWznPlwAHm1Q1mGHtydmSk=
 golazy.dev/lazycontext v0.0.0-20240814221813-8ffee34b2b57 h1:uo3xz6T/f2nTrv4J1P9kIPc0/D7HxInLcBcF+smy0LU=
 golazy.dev/lazycontext v0.0.0-20240814221813-8ffee34b2b57/go.mod h1:s+XnQnoU6ZXGO2twzlinI50XUaR2jxXKaJ4MAaANNYk=
+golazy.dev/lazycontext v0.0.10 h1:Eini82WQN8ZBfzDzZG8r81YtaeSMFjFU+gDCivctoBA=
+golazy.dev/lazycontext v0.0.10/go.mod h1:s+XnQnoU6ZXGO2twzlinI50XUaR2jxXKaJ4MAaANNYk=
